@@ -1,0 +1,61 @@
+{
+  "name": "aigakuen",
+  "version": "0.1.0",
+  "description": "CLI tool for creating hyper-specialized Otaku agents with deep domain expertise for Claude Code",
+  "author": "Tonbi Studio",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "aigakuen": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "templates",
+    "skills"
+  ],
+  "homepage": "https://github.com/ntombisol/aigakuen#readme",
+  "bugs": {
+    "url": "https://github.com/ntombisol/aigakuen/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir ./dist --target node",
+    "build:binary": "bun build src/index.ts --compile --outfile aigakuen",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/**/*.ts",
+    "prepublishOnly": "bun run build && bun run test"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "handlebars": "^4.7.8",
+    "ink": "^5.0.1",
+    "ink-spinner": "^5.0.0",
+    "ora": "^8.0.1",
+    "react": "^18.3.1",
+    "yaml": "^2.4.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^18.3.3",
+    "typescript": "^5.5.0"
+  },
+  "keywords": [
+    "ai",
+    "claude",
+    "claude-code",
+    "agents",
+    "cli",
+    "developer-tools"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ntombisol/aigakuen"
+  }
+}

@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.exe
+
+# Bun
+bun.lockb
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# AI Gakuen test workspace (for development)
+.gakuen-test/
+
+# Test project (private app, not part of AI Gakuen)
+test-project/
+test-project2/
+
+# Any .gakuen directories (generated data)
+**/.gakuen/
+
+# Cache directories
+.cache/
+
+# Claude Code local settings
+.claude/
+
+# Planning/internal markdown files (keep README.md, skills/, and test fixtures)
+*.md
+!README.md
+!skills/**/*.md
+!tests/**/*.md
+
+# Windows artifacts
+nul
