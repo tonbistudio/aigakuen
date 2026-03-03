@@ -7,6 +7,8 @@ export interface ResearchConfig {
   options: ResearchOptions;
 }
 
+export type DomainType = 'technical' | 'non-technical';
+
 export interface DomainInfo {
   id: string;
   name: string;
@@ -17,6 +19,41 @@ export interface DomainInfo {
   docsUrl?: string;
   githubRepo?: string;
   npmPackage?: string;
+  // Optional: explicit domain type override (auto-detected if not set)
+  domainType?: DomainType;
+}
+
+/**
+ * Auto-detect whether a domain is technical (software/code) or non-technical.
+ * Checks for code-specific resources, technologies, and keywords.
+ */
+export function detectDomainType(domain: DomainInfo): DomainType {
+  // Explicit override
+  if (domain.domainType) return domain.domainType;
+
+  // Code-specific resources present → technical
+  if (domain.githubRepo || domain.npmPackage || domain.docsUrl) return 'technical';
+
+  // Known code/infra technologies
+  const codeTech = [
+    'react','vue','angular','svelte','next','nuxt','node','express',
+    'django','flask','rails','typescript','javascript','python','rust','go','java',
+    'kotlin','docker','kubernetes','terraform','aws','gcp','azure','postgres','mysql',
+    'mongodb','redis','supabase','firebase','graphql','webpack','vite','bun',
+  ];
+  const techLower = domain.technologies.map(t => t.toLowerCase());
+  if (techLower.some(t => codeTech.some(ct => t.includes(ct)))) return 'technical';
+
+  // Check name/description/keywords for code technology mentions (single match suffices)
+  const allText = [...domain.keywords, domain.name, domain.description].join(' ').toLowerCase();
+  if (codeTech.some(ct => allText.includes(ct))) return 'technical';
+
+  // Check for general code signals (need ≥2 matches since these are more ambiguous)
+  const codeKeywords = ['api','sdk','library','framework','database','server','frontend','backend','devops',
+    'programming','coding','software','developer','codebase','repository','CI/CD','microservice'];
+  if (codeKeywords.filter(kw => allText.includes(kw)).length >= 2) return 'technical';
+
+  return 'non-technical';
 }
 
 export interface ResearchOptions {

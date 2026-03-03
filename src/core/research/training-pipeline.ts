@@ -16,14 +16,19 @@ import { analyzeChangelog, analyzeChangelogForTechnology } from './changelog-ana
 import { researchCommunity } from './web-researcher';
 import { analyzeSourceCode, analyzeSourceForTechnology } from './source-analyzer';
 import { synthesizeKnowledge, generateTrainingReport } from './knowledge-synthesizer';
+import { detectDomainType } from './types';
 import type {
   DomainInfo,
+  DomainType,
   ResearchOptions,
   RawKnowledge,
   CoreKnowledge,
   TrainingResult,
   TrainingReport,
   SourceInfo,
+  DocumentationKnowledge,
+  IssueKnowledge,
+  ChangelogKnowledge,
 } from './types';
 
 export interface TrainingProgress {
@@ -53,9 +58,123 @@ export async function trainOtaku(
   };
 
   try {
+    const domainType: DomainType = detectDomainType(domain);
+
+    let documentation: DocumentationKnowledge;
+    let issues: IssueKnowledge;
+    let changelog: ChangelogKnowledge;
+    let sourceCode = null;
+
+    if (domainType === 'non-technical') {
+      // ═══════════════════════════════════════════════════════════
+      // NON-TECHNICAL PATH: Skip Context7, GitHub, source code
+      // ═══════════════════════════════════════════════════════════
+      report('documentation', 10, 'Skipping Context7 (non-technical domain)');
+      documentation = { concepts: [], apiReference: '', patterns: [], warnings: [], rawContent: '', source: 'skipped' };
+
+      report('issues', 20, 'Skipping GitHub issues (non-technical domain)');
+      issues = { problemSolutions: [], commonProblems: [], workarounds: [], totalAnalyzed: 0 };
+
+      report('changelog', 30, 'Skipping changelog analysis (non-technical domain)');
+      changelog = { breakingChanges: [], deprecations: [], recentFeatures: [], migrationTips: [] };
+
+      // Double the web research budget for non-technical domains
+      const webBudget = options.maxWebResults * 2;
+      report('community', 40, `Researching community knowledge (expanded budget: ${webBudget})...`);
+      const community = await researchCommunity(
+        domain.name,
+        domain.technologies,
+        domain.keywords,
+        webBudget,
+        domainType
+      );
+      sourcesUsed.push({
+        type: 'web-search',
+        itemCount: community.blogInsights.length + community.stackOverflowSolutions.length,
+        fetchedAt: new Date().toISOString(),
+      });
+
+      report('sourceCode', 70, 'Skipping source code analysis (non-technical domain)');
+
+      // Compile raw knowledge
+      const rawKnowledge: RawKnowledge = {
+        documentation,
+        issues,
+        changelog,
+        community,
+        sourceCode,
+        meta: {
+          startedAt: new Date(startTime).toISOString(),
+          sourcesUsed,
+        },
+      };
+
+      // Phase 6: Knowledge Synthesis
+      report('synthesis', 85, 'Synthesizing expert knowledge...');
+      const coreKnowledge = await synthesizeKnowledge(domain, rawKnowledge);
+
+      // Complete
+      const endTime = Date.now();
+      const durationSeconds = (endTime - startTime) / 1000;
+
+      rawKnowledge.meta.completedAt = new Date(endTime).toISOString();
+
+      // Generate training report
+      const { summary, gaps } = generateTrainingReport(
+        domain,
+        rawKnowledge,
+        coreKnowledge,
+        durationSeconds
+      );
+
+      const trainingReport: TrainingReport = {
+        otakuId,
+        otakuName: domain.name,
+        trainedAt: new Date().toISOString(),
+        duration: durationSeconds,
+        sources: {
+          documentation: {
+            pages: 0,
+            source: 'skipped',
+          },
+          issues: {
+            count: 0,
+            analyzed: 0,
+          },
+          releases: {
+            count: 0,
+          },
+          webResults: {
+            count: community.blogInsights.length + community.stackOverflowSolutions.length,
+          },
+          sourceCode: null,
+        },
+        knowledge: {
+          mentalModelWords: coreKnowledge.mentalModel.split(' ').length,
+          patternsCount: coreKnowledge.goldenPatterns.length,
+          gotchasCount: coreKnowledge.criticalGotchas.length,
+        },
+        gaps,
+      };
+
+      report('complete', 100, `Training complete! ${coreKnowledge.goldenPatterns.length} patterns, ${coreKnowledge.criticalGotchas.length} gotchas learned.`);
+
+      return {
+        otakuId,
+        coreKnowledge,
+        rawKnowledge,
+        toshokanPath: '', // Will be set by the caller after saving
+        trainingReport,
+      };
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // TECHNICAL PATH: All 6 phases (unchanged)
+    // ═══════════════════════════════════════════════════════════
+
     // Phase 1: Documentation (Context7)
     report('documentation', 10, 'Fetching documentation via Context7...');
-    const documentation = await fetchDocumentation(domain);
+    documentation = await fetchDocumentation(domain);
     sourcesUsed.push({
       type: 'context7',
       itemCount: documentation.concepts.length,
@@ -64,7 +183,6 @@ export async function trainOtaku(
 
     // Phase 2: GitHub Issues
     report('issues', 25, 'Mining GitHub issues for problems and solutions...');
-    let issues;
     if (domain.githubRepo) {
       issues = await mineGitHubIssues(domain.githubRepo, options.maxIssues);
       sourcesUsed.push({
@@ -86,7 +204,6 @@ export async function trainOtaku(
 
     // Phase 3: Changelog
     report('changelog', 40, 'Analyzing releases and changelogs...');
-    let changelog;
     if (domain.githubRepo) {
       changelog = await analyzeChangelog(domain.githubRepo, options.maxReleases);
       sourcesUsed.push({
@@ -111,7 +228,8 @@ export async function trainOtaku(
       domain.name,
       domain.technologies,
       domain.keywords,
-      options.maxWebResults
+      options.maxWebResults,
+      domainType
     );
     sourcesUsed.push({
       type: 'web-search',
@@ -121,7 +239,6 @@ export async function trainOtaku(
 
     // Phase 5: Source Code Analysis (Optional)
     report('sourceCode', 70, 'Analyzing source code patterns...');
-    let sourceCode = null;
     if (options.includeSourceCode) {
       if (domain.githubRepo) {
         sourceCode = await analyzeSourceCode(domain.githubRepo, domain.keywords);

@@ -4,6 +4,7 @@ import { initCommand } from './commands/init';
 import { rosterCommand } from './commands/roster';
 import { homeroomCommand } from './commands/homeroom';
 import { enrollCommand } from './commands/enroll';
+import { createCommand } from './commands/create';
 import { trainCommand } from './commands/train';
 import { trainBatchCommand } from './commands/train-batch';
 import { retrainCommand } from './commands/retrain';
@@ -24,6 +25,7 @@ program
 // Core commands
 program.addCommand(initCommand);
 program.addCommand(enrollCommand);
+program.addCommand(createCommand);
 program.addCommand(trainCommand);
 program.addCommand(trainBatchCommand);
 program.addCommand(retrainCommand);

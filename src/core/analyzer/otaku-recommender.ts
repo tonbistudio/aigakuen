@@ -20,7 +20,7 @@ const OTAKU_GENERATION_SCHEMA = `{
         "technologies": ["array of specific technologies"],
         "taskTypes": ["array of task types they handle"]
       },
-      "qualityGates": ["array of checklist items for PR readiness"],
+      "qualityGates": ["array of checklist items for work readiness"],
       "weaknesses": ["array of things to hand off to other Otaku"]
     }
   ]
@@ -28,14 +28,15 @@ const OTAKU_GENERATION_SCHEMA = `{
 
 const OTAKU_GENERATION_PROMPT = `OUTPUT: JSON ONLY. No text, no explanation, no markdown. Start with { end with }.
 
-Create {{domainCount}} "Otaku" characters for AI Gakuen - specialized AI coding agents.
+Create {{domainCount}} "Otaku" characters for AI Gakuen - specialized AI expert agents.
 
 Requirements for each Otaku:
 - Obsessively focused on their domain
 - Memorable personality with a fun catchphrase
-- Japanese-style name with honorific (e.g., "Sync-kun", "React-senpai")
-- Practical quality gates (5-8 checklist items)
+- Japanese-style name with honorific (e.g., "Sync-kun", "React-senpai", "Senryaku-chan", "Trend-senpai")
+- Practical quality gates (5-8 checklist items for work readiness)
 - Known weaknesses (what to hand off to others)
+- Note: technologies may be empty for non-technical domains — that's fine
 
 PROJECT: {{projectName}}
 {{projectDescription}}
@@ -107,6 +108,11 @@ function findOtakuArray(obj: any, depth: number = 0): any[] | null {
       const found = findOtakuArray(value, depth + 1);
       if (found) return found;
     }
+  }
+
+  // Fallback: the root object itself is an Otaku (Claude returned a bare object)
+  if (depth === 0 && looksLikeOtaku(obj)) {
+    return [obj];
   }
 
   return null;
@@ -216,6 +222,58 @@ export async function recommendOtakuWithProgress(
   }
 
   return allRecommendations;
+}
+
+const CREATE_FROM_PROMPT_PROMPT = `OUTPUT: JSON ONLY. No text, no explanation, no markdown. Start with { end with }.
+
+Create exactly 1 "Otaku" character for AI Gakuen - a specialized AI expert agent.
+
+Requirements:
+- Obsessively focused on the domain described below
+- Memorable personality with a fun catchphrase
+- Japanese-style name with honorific (e.g., "Sync-kun", "React-senpai", "Senryaku-chan", "Trend-senpai")
+- Practical quality gates (5-8 checklist items for work readiness)
+- Known weaknesses (what to hand off to others)
+- Note: technologies may be empty for non-technical domains — that's fine
+
+USER REQUEST:
+{{promptText}}`;
+
+/**
+ * Create a single Otaku profile directly from a text prompt
+ * Bypasses the spec → domains → recommendations pipeline
+ */
+export async function createOtakuFromPrompt(
+  promptText: string
+): Promise<Omit<OtakuProfile, 'meta'>> {
+  const prompt = CREATE_FROM_PROMPT_PROMPT.replace('{{promptText}}', promptText);
+
+  const result = await analyzeWithSchemaRetry<OtakuGenerationResult>(
+    prompt,
+    OTAKU_GENERATION_SCHEMA,
+    {},
+    2
+  );
+
+  // Build a synthetic domain as fallback for processOtakuResult
+  const syntheticDomain: ExpertiseDomain = {
+    id: 'prompt-created',
+    name: promptText.slice(0, 60),
+    description: promptText,
+    specificity: 'high',
+    technologies: [],
+    taskTypes: [],
+    keywords: [],
+    rationale: 'Created from direct prompt',
+  };
+
+  const recommendations = processOtakuResult(result, [syntheticDomain]);
+
+  if (recommendations.length === 0) {
+    throw new Error('Failed to generate Otaku from prompt. Claude returned no results.');
+  }
+
+  return recommendations[0].profile;
 }
 
 /**

@@ -6,7 +6,7 @@
  */
 
 import { prompt } from '../../claude';
-import type { CommunityKnowledge } from './types';
+import type { CommunityKnowledge, DomainType } from './types';
 
 /**
  * Research community knowledge for a domain
@@ -15,7 +15,8 @@ export async function researchCommunity(
   domainName: string,
   technologies: string[],
   keywords: string[],
-  maxResults: number = 20
+  maxResults: number = 20,
+  domainType: DomainType = 'technical'
 ): Promise<CommunityKnowledge> {
   // Build search terms from domain info
   const searchTerms = [
@@ -25,7 +26,25 @@ export async function researchCommunity(
   ];
 
   try {
-    // Gather knowledge from multiple source types
+    if (domainType === 'non-technical') {
+      // Non-technical: use domain-appropriate search categories
+      const [articles, discussions, bestPractices, lessons] = await Promise.all([
+        searchArticlesAndCaseStudies(searchTerms, Math.floor(maxResults / 4)),
+        searchCommunityDiscussions(searchTerms, Math.floor(maxResults / 4)),
+        searchBestPractices(searchTerms, Math.floor(maxResults / 4)),
+        searchLessonsLearned(searchTerms, Math.floor(maxResults / 4)),
+      ]);
+
+      return {
+        blogInsights: articles,
+        // stackOverflowSolutions field reused for community discussions
+        stackOverflowSolutions: discussions,
+        bestPractices,
+        ahaMoments: lessons,
+      };
+    }
+
+    // Technical: existing search categories
     const [blogInsights, stackOverflow, bestPractices, ahaMoments] = await Promise.all([
       searchBlogs(searchTerms, Math.floor(maxResults / 4)),
       searchStackOverflow(searchTerms, Math.floor(maxResults / 4)),
@@ -187,6 +206,118 @@ Return ONLY the JSON array.`;
     return parseStringArrayResponse(response);
   } catch (error) {
     console.error('Error searching aha moments:', error);
+    return [];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// NON-TECHNICAL DOMAIN SEARCH FUNCTIONS
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Search for articles, case studies, and expert analysis (non-technical domains)
+ */
+async function searchArticlesAndCaseStudies(
+  searchTerms: string[],
+  maxResults: number
+): Promise<string[]> {
+  const searchPrompt = `Search the web for the best articles, case studies, and expert analysis about: ${searchTerms.join(' ')}
+
+Focus on:
+1. Data-driven case studies with measurable results
+2. Expert analysis from recognized thought leaders
+3. Industry reports and market research findings
+4. Step-by-step breakdowns of successful strategies
+
+For each result, extract the key insight or strategy explained.
+
+Return JSON array of up to ${maxResults} insights:
+["Insight 1: explanation", "Insight 2: explanation", ...]
+
+Each insight should be 1-2 sentences capturing the key takeaway.
+Return ONLY the JSON array.`;
+
+  try {
+    const response = await prompt(searchPrompt, {
+      system: 'You are a domain researcher finding valuable articles, case studies, and expert analysis.',
+      metricsPhase: 'web-articles',
+    });
+
+    return parseStringArrayResponse(response);
+  } catch (error) {
+    console.error('Error searching articles and case studies:', error);
+    return [];
+  }
+}
+
+/**
+ * Search for community discussions on Reddit, Quora, forums, YouTube (non-technical domains)
+ */
+async function searchCommunityDiscussions(
+  searchTerms: string[],
+  maxResults: number
+): Promise<string[]> {
+  const searchPrompt = `Search Reddit, Quora, forums, and YouTube for the most insightful community discussions about: ${searchTerms.join(' ')}
+
+Focus on:
+1. Reddit threads with highly upvoted advice from practitioners
+2. Quora answers from verified experts
+3. YouTube expert breakdowns and tutorials
+4. Forum discussions with real-world experience sharing
+
+For each result, extract the practical advice or experience shared.
+
+Return JSON array of up to ${maxResults} discussion insights:
+["Discussion: practical advice about X", "Discussion: experienced practitioner shares Y", ...]
+
+Each entry should capture actionable advice from real practitioners.
+Return ONLY the JSON array.`;
+
+  try {
+    const response = await prompt(searchPrompt, {
+      system: 'You are a researcher finding valuable community discussions and practitioner advice.',
+      metricsPhase: 'web-discussions',
+    });
+
+    return parseStringArrayResponse(response);
+  } catch (error) {
+    console.error('Error searching community discussions:', error);
+    return [];
+  }
+}
+
+/**
+ * Search for lessons learned, common mistakes, and myths debunked (non-technical domains)
+ */
+async function searchLessonsLearned(
+  searchTerms: string[],
+  maxResults: number
+): Promise<string[]> {
+  const searchPrompt = `Search for lessons learned, common mistakes, and myths debunked about: ${searchTerms.join(' ')}
+
+Focus on:
+1. Expensive mistakes practitioners wish they avoided
+2. Popular myths and misconceptions debunked with evidence
+3. "What I wish I knew before starting" retrospectives
+4. Counter-intuitive findings that contradict common advice
+
+For each result, extract the lesson or debunked myth.
+
+Return JSON array of up to ${maxResults} lessons:
+["Lesson: what went wrong and why", "Myth debunked: common belief vs reality", ...]
+
+Each entry should reveal something that saves time, money, or effort.
+Return ONLY the JSON array.`;
+
+  try {
+    const response = await prompt(searchPrompt, {
+      system: 'You are a researcher finding hard-won lessons and debunking myths.',
+      metricsPhase: 'web-lessons',
+    });
+
+    return parseStringArrayResponse(response);
+  } catch (error) {
+    console.error('Error searching lessons learned:', error);
     return [];
   }
 }

@@ -6,6 +6,7 @@
  */
 
 import { prompt, analyzeWithSchema } from '../../claude';
+import { detectDomainType } from './types';
 import type {
   RawKnowledge,
   CoreKnowledge,
@@ -17,6 +18,30 @@ import type {
   StateFlowRule,
   TimingRule,
 } from './types';
+
+/**
+ * Returns a preamble for non-technical domains that redefines code-centric terms.
+ * Returns empty string for technical domains.
+ */
+function getDomainGuidance(domain: DomainInfo): string {
+  const domainType = detectDomainType(domain);
+  if (domainType === 'technical') return '';
+
+  return `
+IMPORTANT: This is a NON-TECHNICAL domain ("${domain.name}"). Reinterpret all concepts for this context:
+- "Patterns" → strategies, frameworks, methodologies, playbooks
+- "Implementation" → step-by-step execution plans (NOT code)
+- "Contracts" → stakeholder commitments, SLAs, deliverable agreements
+- "Cross-layer concerns" → channel synchronization, cross-platform consistency
+- "Detection strategy" → KPIs, review processes, audit checklists
+- "Integration hazards" → conflicts between strategies, channel cannibalization, message inconsistency
+- "State flow" → workflow stages, pipeline stages, customer journey states
+- "Timing coordination" → campaign scheduling, seasonal alignment, launch sequencing
+
+Do NOT reference code, APIs, databases, or programming concepts. Frame everything in terms of domain-specific practice.
+
+`;
+}
 
 // Simpler schema for fallback when full schema causes truncation
 const ESSENTIAL_KNOWLEDGE_SCHEMA = `{
@@ -150,10 +175,12 @@ export async function synthesizeKnowledge(
   // Build comprehensive context from all sources
   const knowledgeContext = buildKnowledgeContext(rawKnowledge);
 
-  const synthesisPrompt = `You are synthesizing knowledge to create an OBSESSIVE EXPERT in: "${domain.name}"
+  const domainGuidance = getDomainGuidance(domain);
 
+  const synthesisPrompt = `You are synthesizing knowledge to create an OBSESSIVE EXPERT in: "${domain.name}"
+${domainGuidance}
 Description: ${domain.description}
-Technologies: ${domain.technologies.join(', ')}
+Technologies: ${domain.technologies.join(', ') || 'N/A'}
 
 ---
 RAW KNOWLEDGE FROM RESEARCH:
@@ -870,43 +897,69 @@ export function generateTrainingReport(
   gaps: string[];
 } {
   const gaps: string[] = [];
+  const domainType = detectDomainType(domain);
 
-  // Identify knowledge gaps
-  if (rawKnowledge.documentation.rawContent.length < 100) {
-    gaps.push('Limited documentation found');
-  }
-  if (rawKnowledge.issues.totalAnalyzed === 0) {
-    gaps.push('No GitHub issues analyzed');
-  }
-  if (!rawKnowledge.sourceCode) {
-    gaps.push('Source code not analyzed');
-  }
-  if (coreKnowledge.goldenPatterns.length < 2) {
-    gaps.push('Few patterns extracted - may need more research');
-  }
-  if (coreKnowledge.criticalGotchas.length === 0) {
-    gaps.push('No gotchas identified - may be missing edge cases');
+  if (domainType === 'non-technical') {
+    // Non-technical gap detection: skip code-specific gaps
+    const totalWebResults = rawKnowledge.community.blogInsights.length +
+      rawKnowledge.community.stackOverflowSolutions.length +
+      rawKnowledge.community.bestPractices.length +
+      rawKnowledge.community.ahaMoments.length;
+    if (totalWebResults < 10) {
+      gaps.push('Limited web research results - may need additional research');
+    }
+    if (coreKnowledge.goldenPatterns.length < 2) {
+      gaps.push('Few strategies extracted - may need more research');
+    }
+    if (coreKnowledge.criticalGotchas.length === 0) {
+      gaps.push('No pitfalls identified - may be missing common mistakes');
+    }
+  } else {
+    // Technical gap detection (unchanged)
+    if (rawKnowledge.documentation.rawContent.length < 100) {
+      gaps.push('Limited documentation found');
+    }
+    if (rawKnowledge.issues.totalAnalyzed === 0) {
+      gaps.push('No GitHub issues analyzed');
+    }
+    if (!rawKnowledge.sourceCode) {
+      gaps.push('Source code not analyzed');
+    }
+    if (coreKnowledge.goldenPatterns.length < 2) {
+      gaps.push('Few patterns extracted - may need more research');
+    }
+    if (coreKnowledge.criticalGotchas.length === 0) {
+      gaps.push('No gotchas identified - may be missing edge cases');
+    }
+
+    // System-focused knowledge gaps
+    const integrationGotchas = coreKnowledge.criticalGotchas.filter(
+      (g) => g.category === 'integration' || g.category === 'timing' || g.category === 'state-flow'
+    );
+    if (integrationGotchas.length < 2) {
+      gaps.push('Few integration/timing/state-flow gotchas - may miss composition bugs');
+    }
+    if (!coreKnowledge.integrationHazards || coreKnowledge.integrationHazards.length === 0) {
+      gaps.push('No integration hazards identified - may miss pattern conflicts');
+    }
+    if (!coreKnowledge.contractDefinitions || coreKnowledge.contractDefinitions.length === 0) {
+      gaps.push('No contracts defined - may miss implicit guarantees');
+    }
+    const patternsWithContracts = coreKnowledge.goldenPatterns.filter(
+      (p) => p.contracts || p.conflictsWith
+    );
+    if (patternsWithContracts.length < coreKnowledge.goldenPatterns.length / 2) {
+      gaps.push('Few patterns have contracts/conflicts - limited system-level understanding');
+    }
   }
 
-  // System-focused knowledge gaps
-  const integrationGotchas = coreKnowledge.criticalGotchas.filter(
+  // Compute system-focused stats (used in summary for both paths)
+  const allIntegrationGotchas = coreKnowledge.criticalGotchas.filter(
     (g) => g.category === 'integration' || g.category === 'timing' || g.category === 'state-flow'
   );
-  if (integrationGotchas.length < 2) {
-    gaps.push('Few integration/timing/state-flow gotchas - may miss composition bugs');
-  }
-  if (!coreKnowledge.integrationHazards || coreKnowledge.integrationHazards.length === 0) {
-    gaps.push('No integration hazards identified - may miss pattern conflicts');
-  }
-  if (!coreKnowledge.contractDefinitions || coreKnowledge.contractDefinitions.length === 0) {
-    gaps.push('No contracts defined - may miss implicit guarantees');
-  }
-  const patternsWithContracts = coreKnowledge.goldenPatterns.filter(
+  const allPatternsWithContracts = coreKnowledge.goldenPatterns.filter(
     (p) => p.contracts || p.conflictsWith
   );
-  if (patternsWithContracts.length < coreKnowledge.goldenPatterns.length / 2) {
-    gaps.push('Few patterns have contracts/conflicts - limited system-level understanding');
-  }
 
   const summary = `# Training Report: ${domain.name}
 
@@ -921,8 +974,8 @@ export function generateTrainingReport(
 - **Contracts**: ${coreKnowledge.contractDefinitions?.length || 0}
 - **State Flow Rules**: ${coreKnowledge.stateFlowRules?.length || 0}
 - **Timing Rules**: ${coreKnowledge.timingCoordination?.length || 0}
-- **Integration Gotchas**: ${integrationGotchas.length}
-- **Patterns with Contracts**: ${patternsWithContracts.length}/${coreKnowledge.goldenPatterns.length}
+- **Integration Gotchas**: ${allIntegrationGotchas.length}
+- **Patterns with Contracts**: ${allPatternsWithContracts.length}/${coreKnowledge.goldenPatterns.length}
 
 ## Sources Used
 - Documentation: ${rawKnowledge.documentation.source || 'None'}

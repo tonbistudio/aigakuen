@@ -1,5 +1,6 @@
 export * from './init';
 export * from './enroll';
+export * from './create';
 export * from './train';
 export * from './train-batch';
 export * from './retrain';
