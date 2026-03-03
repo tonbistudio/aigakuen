@@ -29,6 +29,7 @@
 - [Commands](#commands)
 - [How Training Works](#how-training-works)
 - [Self-Improvement with Reflect](#self-improvement-with-reflect)
+- [Deploy to OpenClaw](#deploy-to-openclaw)
 - [Example Otaku](#example-otaku)
 - [File Structure](#file-structure)
 - [Environment Variables](#environment-variables)
@@ -181,6 +182,31 @@ Added 1 gotcha(s), 0 pattern(s)
 ```
 
 The Otaku learns from real bugs, making them smarter over time.
+
+## Deploy to OpenClaw
+
+You can deploy trained Otaku as **persistent, always-on agents** via [OpenClaw](https://github.com/openclaw/openclaw) — accessible 24/7 through Telegram, Discord, or WhatsApp.
+
+```
+aigakuen train <otaku>          # Compile domain knowledge
+        |
+build_agent.py                  # Convert toshokan -> OpenClaw workspace
+        |
+openclaw agents add <name>      # Register the agent
+        |
+openclaw gateway restart        # Agent is live on Telegram
+```
+
+Each deployed agent gets:
+
+- **Isolated workspace** — separate memory, knowledge base, and conversation history
+- **Knowledge protocol** — the agent always consults its compiled knowledge before answering (never from training memory alone)
+- **Reflect protocol** — a self-improvement loop that captures bugs fixed during sessions and promotes them into the knowledge base automatically
+- **Multi-domain support** — one OpenClaw agent can cover multiple Otaku domains, with a domain map in `MEMORY.md` for routing
+
+The build script (`openclaw/build_agent.py`) takes your `.gakuen/toshokan` output (local or Google Drive) and produces a complete OpenClaw workspace with MEMORY.md, SOUL.md, AGENTS.md, and a `knowledge/` directory with all compiled files.
+
+See [`openclaw/openclaw-integration.md`](openclaw/openclaw-integration.md) for the full setup guide, and [`openclaw/RESEARCH_SPEC.md`](openclaw/RESEARCH_SPEC.md) for the knowledge compilation spec that defines quality standards for agent knowledge bases.
 
 ## Example Otaku
 
